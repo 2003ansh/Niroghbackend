@@ -1,0 +1,72 @@
+# This workflow is created to automate the deployment process of a containerized application.
+# It involves pushing the built container image to Amazon Elastic Container Registry (ECR) 
+# and subsequently deploying it on an EC2 instance.
+
+name: Deploy to Amazon ECR
+
+# This workflow is triggered by either manual initiation or by pushing to the "alembicTest" branch.
+on:
+  workflow_dispatch: {} 
+  push:
+    branches: [ "master" ]
+
+# The following environment variables are set to streamline various processes in this workflow.
+env:
+  AWS_REGION: ap-south-1          # The specified AWS region for resource deployment
+  ECR_REPOSITORY: niroghbackend           # The name of the Amazon ECR repository 
+
+# Permissions for this workflow are configured to allow read access to repository contents.
+permissions:
+  contents: read
+
+# The jobs section contains the primary tasks for this workflow.
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    environment: dev    # Specifies the environment for this job
+
+    # The steps section outlines the individual tasks to be executed in this job.
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3   # This action is used to retrieve the repository contents.
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v1  # This action sets up AWS credentials.
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}      # Access Key ID from GitHub Secrets
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}  # Secret Access Key from GitHub Secrets
+        aws-region: ${{ env.AWS_REGION }}    # Use the specified AWS region
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1   # This action authenticates with Amazon ECR.
+
+    - name: Build, tag, and push image to Amazon ECR
+      id: build-image
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}   # ECR registry URL
+        IMAGE_TAG: ${{ github.sha }}    # A unique identifier for the image. Here, SHA of the commit is used.
+      # working-directory: ./src   # The specified working directory as per the repo structure 
+      run: |
+        # A Docker container is built and pushed to ECR.
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .  # The Docker image is built anf tagged
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG   # The Docker image is pushed to (AWS)ECR
+        echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT  # The image URL is logged to output (Optional)
+
+    # - name: Pull the image from ECR and deploy to EC2
+    #   id: pull-deploy-image
+    #   uses: appleboy/ssh-action@v1.0.0   # This action executes SSH commands
+    #   env:
+    #     IMAGE_TAG: ${{ github.sha }}    # A unique identifier for the image, same as before
+    #     ECR_REPOSITORY: ${{ steps.login-ecr.outputs.registry }}   # ECR registry URL
+    #   with:
+    #     host: ${{ secrets.EC2_PUBLIC_IP }}    # The public IP of the target EC2 instance
+    #     username: ${{ secrets.EC2_USERNAME }}   # The SSH username for the EC2 instance
+    #     key: ${{ secrets.SSH_CONNECT_KEY }}    # The SSH private key for authentication
+    #     envs: IMAGE_TAG, ECR_REPOSITORY   # The environment variables to be passed to the remote machine
+    #     script: |
+    #       cd ${{ secrets.REMOTE_PATH }}   # The remote working directory is accessed, different for different project structure
+    #       docker-compose down   # Containers defined in docker-compose.yaml are stopped and removed
+    #       aws ecr get-login-password --region ap-south-1 | docker login -u AWS --password-stdin $ECR_REPOSITORY   # Docker is authenticated with ECR
+    #       IMAGE_TAG_BF=$IMAGE_TAG docker-compose up -d backend_front   # Containers are pulled and started with specified scaling
