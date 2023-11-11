@@ -1,0 +1,31 @@
+version : '3.8'
+services:
+  # backend_server:
+  #   #build:
+  #    # context: ./src
+  #   image: "898876303398.dkr.ecr.ap-south-1.amazonaws.com/niroghbackend:${IMAGE_TAG}"
+  #         #"187645746900.dkr.ecr.ap-south-1.amazonaws.com/depls:latest"
+  #   ports:
+  #     - "8080" ## external:container, Dokcerfile cmd --bind 0.0.0.0:8080, we remove external port beacuse we run multiple
+  #     # instances and it will raise error that port is occupied. so,this helps-> the containers will same port but external port will be different
+  #   env_file:
+  #     - ./config/backend_server/.env
+
+
+  backend_front:
+    image: "898876303398.dkr.ecr.ap-south-1.amazonaws.com/niroghbackend:${IMAGE_TAG_BF}"
+    ports:
+      - 5000:5000
+    env_file:
+      - ./config/backend_front/.env
+
+  # nginx:
+  #   image: nginx:latest
+  #   ports:
+  #     - "80:80"
+  #     - "443:443" # external:container, nginx.conf listen 80(container)
+  #   volumes:
+  #     - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+  #     - ./certs:/certs
+  #   depends_on:
+  #     - backend_server
